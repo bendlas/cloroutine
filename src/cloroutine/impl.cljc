@@ -7,6 +7,15 @@
                     (java.lang.reflect Field Modifier)
                     (sun.misc Unsafe))))
 
+(defmacro spy
+  ([form]
+   `(spy ~(pr-str form) ~form))
+  ([tag form]
+   `(let [res# ~form]
+      (println ~tag "=>" (pr-str res#))
+      res#)))
+
+
 (def unsafe
   #?(:clj
      (some (fn [^Field f]
