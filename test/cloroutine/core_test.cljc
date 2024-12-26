@@ -117,3 +117,5 @@
   #?(:cljs (run (cr {} (js* "'~{}'" "Result")) "\"Result\""))
   #?(:cljs (run (cr {} (js->clj (js-obj "key" "val"))) {:key "val"}))
   )
+
+#_(clojure.test/run-tests)
