@@ -1,0 +1,4 @@
+*~
+/cljs-test-runner-out/
+/.cpcache/
+/.cljs_node_repl/
