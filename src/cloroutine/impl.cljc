@@ -130,7 +130,10 @@
   (with-meta (cons 'cljs.core/array args) meta))
 
 (defn emit-place [ssa tag place]
-  `(hint ~tag ~(-> ssa :places place :tag) ~place))
+  (spy :emit-place [ssa tag place])
+  (if (:skip-place ssa)
+    place
+    `(hint ~tag ~(-> ssa :places place :tag) ~place)))
 
 (defn instance [ast]
   (or (:instance ast) (:target ast)))
@@ -202,9 +205,12 @@
   (sym (:prefix ssa) 'block (-> ssa :blocks count dec)))
 
 (defn with-place [ssa place]
+  (spy :with-place [ssa place])
   (let [block (current-block ssa)]
-    (if (= block (-> ssa :places place :block))
-      ssa (update-in ssa [:blocks block :read] conj-set place))))
+    (if #_(or (:skip-place ssa)
+              (= block (-> ssa :places place :block)))
+        (= block (-> ssa :places (get place) :block))
+        ssa (update-in ssa [:blocks block :read] conj-set place))))
 
 (defn collect [ssa rf asts f & args]
   (loop [ssa (assoc ssa :result [] :tag [])
@@ -245,6 +251,7 @@
       (let [l (:name ast)
             s (get-in ssa [:shadow l])
             p (get-in ssa [:locals l])]
+        (spy :add-closing-local [:local ssa l s p])
         (if s
           (assoc ssa :result `(hint ~(-> ast :tag tag->symbol) ~(:tag met) ~s))
           (if p
@@ -410,12 +417,15 @@
 (defn add-place
   ([ssa init] (add-place ssa init nil))
   ([{:as ssa :keys [prefix places]} init tag]
-   (let [block (current-block ssa)
-         place (sym prefix 'place (count places))]
-     (-> ssa
-         (assoc :result place :tag tag)
-         (assoc-in [:places place] {:init init :tag tag :block block})
-         (update-in [:blocks block :bind] conj-vec place)))))
+   (spy :add-place [ssa init tag])
+   (if (:skip-place ssa)
+     (assoc ssa :result init)
+     (let [block (current-block ssa)
+           place (sym prefix 'place (count places))]
+       (-> ssa
+           (assoc :result place :tag tag)
+           (assoc-in [:places place] {:init init :tag tag :block block})
+           (update-in [:blocks block :bind] conj-vec place))))))
 
 (defn with-transition [ssa origin target write state & path]
   (-> ssa
@@ -547,7 +557,10 @@
         (add-place ssa (:form ast) tag))
 
       (:const :var :js-var :quote :the-var :static-field)
-      (add-place ssa `(hint ~tag ~(-> ast :o-tag tag->symbol) ~(:form ast)) tag)
+      #_(add-place ssa `(hint ~tag ~(-> ast :o-tag tag->symbol) ~(:form ast)) tag)
+      (assoc (spy ssa)
+             :result (:form ast)
+             :skip-place true)
 
       (:fn :reify :deftype)
       (let [ssa (add-closing ssa ast)]
@@ -709,7 +722,7 @@
                     (update-in ssa [:blocks block :heap] conj-set place)
                     (reduce (fn [ssa overlap] (with-overlap ssa overlap place)) ssa heap)
                     (->> origins
-                         (remove (some-fn #{(-> places place :block)} (comp place :heap blocks)))
+                         (remove (some-fn #{(-> places (get place) :block)} (comp #(get % place) :heap blocks)))
                          (reduce (fn [ssa block] (backtrack ssa block place)) ssa)))))
           (span-block [ssa block {:keys [read]}]
             (reduce (fn [ssa place] (backtrack ssa block place)) ssa read))]
@@ -718,12 +731,12 @@
 
 (def color
   (letfn [(color-place [{:as ssa :keys [places]} place]
-            (let [color (or (-> places place :color)
+            (let [color (or (-> places (get place) :color)
                             (->> (range)
                                  (next)
                                  (remove (into #{}
                                                (comp (map (comp :color places)) (remove nil?))
-                                               (-> places place :overlaps)))
+                                               (-> places (get place) :overlaps)))
                                  (first)))]
               (-> ssa
                   (assoc-in [:places place :color] color)
@@ -738,7 +751,8 @@
             (with-meta (sym (:prefix ssa) 'state) {:tag 'objects}))
 
           (emit-fetch [ssa place]
-            (let [{:keys [color tag]} (-> ssa :places place)]
+            (spy :emit-fetch [ssa place])
+            (let [{:keys [color tag]} (-> ssa :places (get place))]
               `(hint ~tag nil (aget ~(emit-state-symbol ssa) ~color))))
 
           (emit-store [ssa [place value]]
