@@ -110,8 +110,13 @@
             (with-meta (cons 'cljs.core/js-obj (interleave keys args)) meta))
           (emit-js-array [args meta]
             (with-meta (cons 'cljs.core/array args) meta))
-          (emit-place [ssa tag place]
-            `(hint ~tag ~(-> ssa :places place :tag) ~place))
+          (emit-place [{:keys [places]
+                        :as ssa}
+                       tag place]
+            `(hint ~tag
+                   ~(when (contains? places place)
+                      (-> places place :tag))
+                   ~place))
           (instance [ast]
             (or (:instance ast) (:target ast)))
           (field [ast]
@@ -168,9 +173,12 @@
                         (dissoc m k))) m ks))
           (current-block [ssa]
             (sym (:prefix ssa) 'block (-> ssa :blocks count dec)))
-          (with-place [ssa place]
+          (with-place [{:keys [places]
+                        :as ssa}
+                       place]
             (let [block (current-block ssa)]
-              (if (= block (-> ssa :places place :block))
+              (if (or (not (contains? places place))
+                      (= block (-> places place :block)))
                 ssa (update-in ssa [:blocks block :read] conj-set place))))
           (collect [ssa rf asts f & args]
             (loop [ssa (assoc ssa :result [] :tag [])

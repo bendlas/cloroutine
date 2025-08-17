@@ -1,0 +1,3 @@
+.cpcache/
+*.sh
+cljs-test-runner-out/
