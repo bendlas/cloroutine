@@ -115,5 +115,5 @@
   #?(:cljs (run (cr {} (js->clj #js[1 2 3])) [1 2 3]))
   #?(:cljs (run (cr {} (js->clj ((fn [] #js[1 2 3])))) [1 2 3]))
   #?(:cljs (run (cr {} (js* "'~{}'" "Result")) "\"Result\""))
-  #?(:cljs (run (cr {} (js->clj (js-obj "key" "val"))) {:key "val"}))
+  #?(:cljs (run (cr {} (js->clj (js-obj "key" "val"))) {"key" "val"}))
   )
